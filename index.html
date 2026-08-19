@@ -1,0 +1,256 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Admin — Receipts Dashboard</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Kanit:wght@500;600;700&family=Noto+Sans+Thai:wght@400;500&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --primary:#D6293E; --primary-dark:#A81F30; --primary-bg:#FDECEE;
+    --ink:#1A1A1A; --ink-soft:#65605F; --page-bg:#FFFFFF; --card:#FFFFFF;
+    --border:#ECD9DA; --danger:#8C1327; --danger-bg:#F6E3E1; --radius:14px;
+  }
+  *{box-sizing:border-box;}
+  body{ margin:0; font-family:'Noto Sans Thai','Helvetica Neue',Arial,sans-serif; background:var(--page-bg); color:var(--ink); }
+  h1,label,.headline{ font-family:'Kanit','Noto Sans Thai',sans-serif; }
+  .wrap{ max-width:720px; margin:0 auto; padding:20px 16px 60px; }
+  header{ padding:6px 4px 18px; }
+  header .eyebrow{ font-size:12px; font-weight:600; color:var(--primary-dark); letter-spacing:.04em; text-transform:uppercase; }
+  header h1{ margin:2px 0 0; font-size:22px; font-weight:600; }
+
+  .seg{ display:flex; gap:8px; flex-wrap:wrap; margin-bottom:10px; }
+  .seg button{
+    flex:1; min-width:80px; padding:10px 6px; border-radius:10px; border:1.5px solid var(--border);
+    background:#fff; font-family:'Kanit',sans-serif; font-size:13px; font-weight:600; color:var(--ink-soft); cursor:pointer;
+  }
+  .seg button.active{ border-color:var(--primary); background:var(--primary-bg); color:var(--primary-dark); }
+
+  .sum-grand{
+    display:flex; justify-content:space-between; align-items:center; padding:16px 18px;
+    background:var(--primary); color:#fff; border-radius:var(--radius); margin:14px 0;
+  }
+  .sum-grand .sg-label{ font-size:13px; opacity:.9; font-weight:600; }
+  .sum-grand .sg-total{ font-size:22px; font-weight:700; }
+  .sum-grand .sg-count{ font-size:12px; opacity:.85; margin-top:2px; }
+
+  .sum-card{
+    background:var(--card); border:1px solid var(--border); border-radius:var(--radius);
+    padding:14px 16px; margin-bottom:10px; display:flex; align-items:center; justify-content:space-between; gap:10px;
+  }
+  .sum-card .sum-label{ font-size:14.5px; font-weight:600; }
+  .sum-card .sum-count{ font-size:12px; color:var(--ink-soft); margin-top:2px; }
+  .sum-card .sum-total{ font-size:16.5px; font-weight:700; white-space:nowrap; }
+  .sum-card .sum-total.neg{ color:var(--danger); }
+
+  .empty-state{ text-align:center; padding:44px 16px; color:var(--ink-soft); font-size:13.5px; }
+
+  .key-gate{
+    max-width:360px; margin:80px auto; text-align:center; padding:0 16px;
+  }
+  .key-gate h1{ font-size:19px; margin-bottom:14px; }
+  .key-gate input{
+    width:100%; font-size:16px; padding:12px 14px; border:1.5px solid var(--border); border-radius:10px; margin-bottom:10px;
+  }
+  .key-gate button{
+    width:100%; padding:13px; border:none; border-radius:10px; background:var(--primary); color:#fff;
+    font-family:'Kanit',sans-serif; font-size:15px; font-weight:600; cursor:pointer;
+  }
+  .key-gate .err{ color:var(--danger); font-size:12.5px; margin-top:8px; display:none; }
+  .key-gate .err.show{ display:block; }
+
+  .refresh-row{ display:flex; justify-content:space-between; align-items:center; margin:4px 0 14px; }
+  .refresh-row .updated{ font-size:11.5px; color:var(--ink-soft); }
+  .refresh-row .link-btn{ font-size:12.5px; color:var(--primary-dark); font-weight:600; cursor:pointer; background:none; border:none; font-family:inherit; }
+</style>
+</head>
+<body>
+
+<div class="key-gate" id="keyGate">
+  <h1>Admin key required</h1>
+  <input type="password" id="keyInput" placeholder="Paste your admin key" autocomplete="off" />
+  <button type="button" id="keySubmit">Continue</button>
+  <div class="err" id="keyErr">That key was rejected — check it and try again.</div>
+</div>
+
+<div class="wrap" id="dashboard" style="display:none;">
+  <header>
+    <div class="eyebrow">Receipts</div>
+    <h1>Admin dashboard</h1>
+  </header>
+
+  <div class="seg" id="periodSeg">
+    <button type="button" data-period="today" class="active">Today</button>
+    <button type="button" data-period="yesterday">Yesterday</button>
+    <button type="button" data-period="week">Last 7 days</button>
+    <button type="button" data-period="month">This month</button>
+    <button type="button" data-period="all">All time</button>
+  </div>
+
+  <div class="seg" id="groupSeg">
+    <button type="button" data-group="salesperson" class="active">By salesperson</button>
+    <button type="button" data-group="day">By day</button>
+    <button type="button" data-group="month">By month</button>
+    <button type="button" data-group="customer">By customer</button>
+  </div>
+
+  <div class="refresh-row">
+    <span class="updated" id="updatedAt"></span>
+    <button type="button" class="link-btn" id="refreshBtn">Refresh</button>
+    <button type="button" class="link-btn" id="signOutBtn">Sign out</button>
+  </div>
+
+  <div id="grandBox"></div>
+  <div id="listBox"><div class="empty-state">Loading…</div></div>
+</div>
+
+<script>
+/* ====================== CONFIG — same endpoint as liff-form.html ====================== */
+const GAS_ENDPOINT = "https://script.google.com/macros/s/AKfycbxAp2OXVEOVRxKQEvqfCmRZL9QZz3bjgcAyk2z8IHR5p5Q58lnlMFcL7yNY4QTgE4EUFg/exec";
+/* ======================================================================================= */
+
+function el(id){ return document.getElementById(id); }
+
+let adminKey = '';
+try { adminKey = localStorage.getItem('adminDashboardKey') || ''; } catch (err) { /* ignore */ }
+
+let period = 'today';
+let groupBy = 'salesperson';
+
+function money(n){
+  const num = parseFloat(n);
+  if (isNaN(num)) return "0.00";
+  return Math.abs(num).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+}
+function formatSigned(n){
+  const num = parseFloat(n) || 0;
+  return (num < 0 ? '-฿ ' : '฿ ') + money(num);
+}
+function formatMonthLabel(yyyyMM){
+  const [y, m] = String(yyyyMM).split('-').map(Number);
+  if (!y || !m) return yyyyMM;
+  const d = new Date(y, m - 1, 1);
+  return d.toLocaleDateString('en-US', { year: 'numeric', month: 'long' });
+}
+
+function showGate(withError){
+  el('keyGate').style.display = 'block';
+  el('dashboard').style.display = 'none';
+  el('keyErr').className = 'err' + (withError ? ' show' : '');
+}
+
+function showDashboard(){
+  el('keyGate').style.display = 'none';
+  el('dashboard').style.display = 'block';
+  loadSummary();
+}
+
+el('keySubmit').addEventListener('click', () => {
+  const v = el('keyInput').value.trim();
+  if (!v) return;
+  adminKey = v;
+  tryKey();
+});
+el('keyInput').addEventListener('keydown', (e) => { if (e.key === 'Enter') el('keySubmit').click(); });
+
+el('signOutBtn').addEventListener('click', () => {
+  adminKey = '';
+  try { localStorage.removeItem('adminDashboardKey'); } catch (err) { /* ignore */ }
+  el('keyInput').value = '';
+  showGate(false);
+});
+
+el('refreshBtn').addEventListener('click', loadSummary);
+
+el('periodSeg').addEventListener('click', (e) => {
+  const btn = e.target.closest('button');
+  if (!btn) return;
+  period = btn.dataset.period;
+  [...el('periodSeg').children].forEach(b => b.classList.toggle('active', b === btn));
+  loadSummary();
+});
+
+el('groupSeg').addEventListener('click', (e) => {
+  const btn = e.target.closest('button');
+  if (!btn) return;
+  groupBy = btn.dataset.group;
+  [...el('groupSeg').children].forEach(b => b.classList.toggle('active', b === btn));
+  loadSummary();
+});
+
+async function tryKey(){
+  el('grandBox').innerHTML = '';
+  el('listBox').innerHTML = '<div class="empty-state">Checking key…</div>';
+  el('dashboard').style.display = 'block';
+  el('keyGate').style.display = 'none';
+  const ok = await loadSummary(true);
+  if (ok) {
+    try { localStorage.setItem('adminDashboardKey', adminKey); } catch (err) { /* ignore */ }
+  } else {
+    showGate(true);
+  }
+}
+
+async function loadSummary(isKeyCheck){
+  const list = el('listBox');
+  const grand = el('grandBox');
+  list.innerHTML = '<div class="empty-state">Loading…</div>';
+  try {
+    const url = `${GAS_ENDPOINT}?action=adminSummary&adminKey=${encodeURIComponent(adminKey)}&period=${encodeURIComponent(period)}&groupBy=${encodeURIComponent(groupBy)}&_=${Date.now()}`;
+    const res = await fetch(url, { cache: 'no-store' });
+    const data = await res.json();
+
+    if (data && data.error === 'Unauthorized') {
+      if (!isKeyCheck) showGate(true);
+      return false;
+    }
+
+    const groups = data.groups || [];
+    grand.innerHTML = `
+      <div class="sum-grand">
+        <div>
+          <div class="sg-label">Grand total</div>
+          <div class="sg-count">${data.grandCount || 0} receipts</div>
+        </div>
+        <div class="sg-total">${formatSigned(data.grandTotal || 0)}</div>
+      </div>
+    `;
+
+    if (!groups.length) {
+      list.innerHTML = '<div class="empty-state">No receipts for this period.</div>';
+    } else {
+      list.innerHTML = groups.map(g => {
+        const label = groupBy === 'month' ? formatMonthLabel(g.label) : g.label;
+        const countLabel = g.count === 1 ? 'receipt' : 'receipts';
+        return `
+          <div class="sum-card">
+            <div>
+              <div class="sum-label">${label}</div>
+              <div class="sum-count">${g.count} ${countLabel}</div>
+            </div>
+            <div class="sum-total ${g.total < 0 ? 'neg' : ''}">${formatSigned(g.total)}</div>
+          </div>
+        `;
+      }).join('');
+    }
+
+    el('updatedAt').textContent = 'Updated ' + new Date().toLocaleTimeString();
+    return true;
+  } catch (err) {
+    list.innerHTML = '<div class="empty-state">Could not load data — check your connection.</div>';
+    return !isKeyCheck; // don't bounce back to the key gate on a plain network error
+  }
+}
+
+/* ---------- init ---------- */
+(function init(){
+  if (adminKey) {
+    showDashboard();
+  } else {
+    showGate(false);
+  }
+})();
+</script>
+</body>
+</html>
