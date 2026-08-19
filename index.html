@@ -6,6 +6,7 @@
 <title>Admin — Receipts Dashboard</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Kanit:wght@500;600;700&family=Noto+Sans+Thai:wght@400;500&display=swap" rel="stylesheet">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
 <style>
   :root{
     --primary:#D6293E; --primary-dark:#A81F30; --primary-bg:#FDECEE;
@@ -14,11 +15,22 @@
   }
   *{box-sizing:border-box;}
   body{ margin:0; font-family:'Noto Sans Thai','Helvetica Neue',Arial,sans-serif; background:var(--page-bg); color:var(--ink); }
-  h1,label,.headline{ font-family:'Kanit','Noto Sans Thai',sans-serif; }
+  h1,h2,label,.headline{ font-family:'Kanit','Noto Sans Thai',sans-serif; }
   .wrap{ max-width:720px; margin:0 auto; padding:20px 16px 60px; }
   header{ padding:6px 4px 18px; }
   header .eyebrow{ font-size:12px; font-weight:600; color:var(--primary-dark); letter-spacing:.04em; text-transform:uppercase; }
   header h1{ margin:2px 0 0; font-size:22px; font-weight:600; }
+
+  /* Top-level page tabs */
+  .page-tabs{ display:flex; gap:6px; margin-bottom:16px; border-bottom:1.5px solid var(--border); }
+  .page-tabs button{
+    flex:1; padding:11px 6px; border:none; background:none; cursor:pointer;
+    font-family:'Kanit',sans-serif; font-size:14px; font-weight:600; color:var(--ink-soft);
+    border-bottom:2.5px solid transparent; margin-bottom:-1.5px;
+  }
+  .page-tabs button.active{ color:var(--primary-dark); border-bottom-color:var(--primary); }
+  .page{ display:none; }
+  .page.active{ display:block; }
 
   .seg{ display:flex; gap:8px; flex-wrap:wrap; margin-bottom:10px; }
   .seg button{
@@ -26,6 +38,21 @@
     background:#fff; font-family:'Kanit',sans-serif; font-size:13px; font-weight:600; color:var(--ink-soft); cursor:pointer;
   }
   .seg button.active{ border-color:var(--primary); background:var(--primary-bg); color:var(--primary-dark); }
+
+  .daterange{
+    display:none; gap:8px; align-items:center; margin-bottom:10px;
+    background:var(--primary-bg); border:1px solid var(--border); border-radius:10px; padding:10px 12px;
+  }
+  .daterange.show{ display:flex; flex-wrap:wrap; }
+  .daterange label{ font-size:12px; font-weight:600; color:var(--primary-dark); }
+  .daterange input[type=date]{
+    flex:1; min-width:130px; font-size:14px; padding:8px 10px; border:1.5px solid var(--border); border-radius:8px;
+    font-family:inherit; background:#fff;
+  }
+  .daterange .apply-btn{
+    padding:8px 14px; border:none; border-radius:8px; background:var(--primary); color:#fff;
+    font-family:'Kanit',sans-serif; font-size:13px; font-weight:600; cursor:pointer;
+  }
 
   .sum-grand{
     display:flex; justify-content:space-between; align-items:center; padding:16px 18px;
@@ -60,9 +87,39 @@
   .key-gate .err{ color:var(--danger); font-size:12.5px; margin-top:8px; display:none; }
   .key-gate .err.show{ display:block; }
 
-  .refresh-row{ display:flex; justify-content:space-between; align-items:center; margin:4px 0 14px; }
-  .refresh-row .updated{ font-size:11.5px; color:var(--ink-soft); }
-  .refresh-row .link-btn{ font-size:12.5px; color:var(--primary-dark); font-weight:600; cursor:pointer; background:none; border:none; font-family:inherit; }
+  .refresh-row{ display:flex; justify-content:space-between; align-items:center; margin:4px 0 14px; gap:10px; }
+  .refresh-row .updated{ font-size:11.5px; color:var(--ink-soft); flex:1; }
+  .refresh-row .link-btn{ font-size:12.5px; color:var(--primary-dark); font-weight:600; cursor:pointer; background:none; border:none; font-family:inherit; white-space:nowrap; }
+
+  /* Export tab */
+  .export-actions{ display:flex; gap:10px; flex-wrap:wrap; margin:16px 0; }
+  .export-actions button{
+    flex:1; min-width:140px; padding:13px; border:none; border-radius:10px; cursor:pointer;
+    font-family:'Kanit',sans-serif; font-size:14px; font-weight:600;
+  }
+  .btn-excel{ background:#1D6F42; color:#fff; }
+  .btn-print{ background:#fff; color:var(--primary-dark); border:1.5px solid var(--primary) !important; }
+  .export-hint{ font-size:12px; color:var(--ink-soft); margin:-4px 0 14px; }
+  .export-count{ font-size:13px; color:var(--ink-soft); margin:10px 0; }
+
+  table.preview{ width:100%; border-collapse:collapse; font-size:12.5px; margin-top:10px; }
+  table.preview th, table.preview td{ border:1px solid var(--border); padding:6px 8px; text-align:left; white-space:nowrap; }
+  table.preview th{ background:var(--primary-bg); color:var(--primary-dark); font-family:'Kanit',sans-serif; }
+  table.preview tr:nth-child(even) td{ background:#FAFAFA; }
+  .table-scroll{ overflow-x:auto; border:1px solid var(--border); border-radius:10px; }
+
+  #printArea{ display:none; }
+
+  @media print{
+    body *{ visibility:hidden; }
+    #printArea, #printArea *{ visibility:visible; }
+    #printArea{ display:block; position:absolute; top:0; left:0; width:100%; padding:20px; }
+    #printArea table{ width:100%; border-collapse:collapse; font-size:11px; }
+    #printArea th, #printArea td{ border:1px solid #999; padding:4px 6px; text-align:left; }
+    #printArea th{ background:#eee; }
+    #printArea h2{ margin-bottom:4px; }
+    #printArea .print-meta{ font-size:11px; color:#555; margin-bottom:14px; }
+  }
 </style>
 </head>
 <body>
@@ -80,29 +137,94 @@
     <h1>Admin dashboard</h1>
   </header>
 
-  <div class="seg" id="periodSeg">
-    <button type="button" data-period="today" class="active">Today</button>
-    <button type="button" data-period="yesterday">Yesterday</button>
-    <button type="button" data-period="week">Last 7 days</button>
-    <button type="button" data-period="month">This month</button>
-    <button type="button" data-period="all">All time</button>
+  <div class="page-tabs">
+    <button type="button" data-page="summary" class="active">Summary</button>
+    <button type="button" data-page="export">Export &amp; Print</button>
   </div>
 
-  <div class="seg" id="groupSeg">
-    <button type="button" data-group="salesperson" class="active">By salesperson</button>
-    <button type="button" data-group="day">By day</button>
-    <button type="button" data-group="month">By month</button>
-    <button type="button" data-group="customer">By customer</button>
+  <!-- ===================== SUMMARY PAGE ===================== -->
+  <div class="page active" id="page-summary">
+    <div class="seg" id="periodSeg">
+      <button type="button" data-period="today" class="active">Today</button>
+      <button type="button" data-period="yesterday">Yesterday</button>
+      <button type="button" data-period="week">Last 7 days</button>
+      <button type="button" data-period="month">This month</button>
+      <button type="button" data-period="all">All time</button>
+      <button type="button" data-period="custom">Custom range</button>
+    </div>
+
+    <div class="daterange" id="summaryDateRange">
+      <label>From</label>
+      <input type="date" id="summaryStart" />
+      <label>To</label>
+      <input type="date" id="summaryEnd" />
+      <button type="button" class="apply-btn" id="summaryApply">Apply</button>
+    </div>
+
+    <div class="seg" id="groupSeg">
+      <button type="button" data-group="salesperson" class="active">By salesperson</button>
+      <button type="button" data-group="day">By day</button>
+      <button type="button" data-group="month">By month</button>
+      <button type="button" data-group="customer">By customer</button>
+    </div>
+
+    <div class="refresh-row">
+      <span class="updated" id="updatedAt"></span>
+      <button type="button" class="link-btn" id="refreshBtn">Refresh</button>
+      <button type="button" class="link-btn" id="signOutBtn">Sign out</button>
+    </div>
+
+    <div id="grandBox"></div>
+    <div id="listBox"><div class="empty-state">Loading…</div></div>
   </div>
 
-  <div class="refresh-row">
-    <span class="updated" id="updatedAt"></span>
-    <button type="button" class="link-btn" id="refreshBtn">Refresh</button>
-    <button type="button" class="link-btn" id="signOutBtn">Sign out</button>
-  </div>
+  <!-- ===================== EXPORT / PRINT PAGE ===================== -->
+  <div class="page" id="page-export">
+    <div class="seg" id="exportPeriodSeg">
+      <button type="button" data-period="today" class="active">Today</button>
+      <button type="button" data-period="yesterday">Yesterday</button>
+      <button type="button" data-period="week">Last 7 days</button>
+      <button type="button" data-period="month">This month</button>
+      <button type="button" data-period="all">All time</button>
+      <button type="button" data-period="custom">Custom range</button>
+    </div>
 
-  <div id="grandBox"></div>
-  <div id="listBox"><div class="empty-state">Loading…</div></div>
+    <div class="daterange" id="exportDateRange">
+      <label>From</label>
+      <input type="date" id="exportStart" />
+      <label>To</label>
+      <input type="date" id="exportEnd" />
+      <button type="button" class="apply-btn" id="exportApply">Apply</button>
+    </div>
+
+    <div class="export-count" id="exportCount"></div>
+
+    <div class="export-actions">
+      <button type="button" class="btn-excel" id="downloadExcelBtn">⬇ Download Excel (.xlsx)</button>
+      <button type="button" class="btn-print" id="printBtn">🖨 Print report</button>
+    </div>
+    <div class="export-hint">Report includes every bill / credit-note line for the selected range, including voided receipts (marked in the Status column).</div>
+
+    <div class="table-scroll">
+      <table class="preview" id="exportPreviewTable">
+        <thead><tr><th colspan="8">Loading…</th></tr></thead>
+        <tbody></tbody>
+      </table>
+    </div>
+  </div>
+</div>
+
+<!-- Hidden print-only view, filled in just before window.print() -->
+<div id="printArea">
+  <h2>Receipts report</h2>
+  <div class="print-meta" id="printMeta"></div>
+  <table id="printTable">
+    <thead><tr>
+      <th>Date</th><th>Customer</th><th>Salesperson</th><th>Type</th>
+      <th>Bill #</th><th>Amount</th><th>Payment</th><th>Status</th>
+    </tr></thead>
+    <tbody id="printTableBody"></tbody>
+  </table>
 </div>
 
 <script>
@@ -117,6 +239,11 @@ try { adminKey = localStorage.getItem('adminDashboardKey') || ''; } catch (err) 
 
 let period = 'today';
 let groupBy = 'salesperson';
+let summaryStart = '', summaryEnd = '';
+
+let exportPeriod = 'today';
+let exportStart = '', exportEnd = '';
+let lastExportRows = [];
 
 function money(n){
   const num = parseFloat(n);
@@ -132,6 +259,10 @@ function formatMonthLabel(yyyyMM){
   if (!y || !m) return yyyyMM;
   const d = new Date(y, m - 1, 1);
   return d.toLocaleDateString('en-US', { year: 'numeric', month: 'long' });
+}
+function todayStr(){
+  const d = new Date();
+  return d.getFullYear() + '-' + String(d.getMonth()+1).padStart(2,'0') + '-' + String(d.getDate()).padStart(2,'0');
 }
 
 function showGate(withError){
@@ -163,11 +294,31 @@ el('signOutBtn').addEventListener('click', () => {
 
 el('refreshBtn').addEventListener('click', loadSummary);
 
+/* ---------- page tabs ---------- */
+document.querySelectorAll('.page-tabs button').forEach(btn => {
+  btn.addEventListener('click', () => {
+    document.querySelectorAll('.page-tabs button').forEach(b => b.classList.toggle('active', b === btn));
+    document.querySelectorAll('.page').forEach(p => p.classList.toggle('active', p.id === 'page-' + btn.dataset.page));
+    if (btn.dataset.page === 'export') loadExport();
+  });
+});
+
+/* ---------- summary controls ---------- */
 el('periodSeg').addEventListener('click', (e) => {
   const btn = e.target.closest('button');
   if (!btn) return;
   period = btn.dataset.period;
   [...el('periodSeg').children].forEach(b => b.classList.toggle('active', b === btn));
+  el('summaryDateRange').classList.toggle('show', period === 'custom');
+  if (period === 'custom') {
+    if (!summaryStart || !summaryEnd) return; // wait for Apply
+  }
+  loadSummary();
+});
+el('summaryApply').addEventListener('click', () => {
+  summaryStart = el('summaryStart').value;
+  summaryEnd = el('summaryEnd').value;
+  if (!summaryStart || !summaryEnd) return;
   loadSummary();
 });
 
@@ -178,6 +329,26 @@ el('groupSeg').addEventListener('click', (e) => {
   [...el('groupSeg').children].forEach(b => b.classList.toggle('active', b === btn));
   loadSummary();
 });
+
+/* ---------- export controls ---------- */
+el('exportPeriodSeg').addEventListener('click', (e) => {
+  const btn = e.target.closest('button');
+  if (!btn) return;
+  exportPeriod = btn.dataset.period;
+  [...el('exportPeriodSeg').children].forEach(b => b.classList.toggle('active', b === btn));
+  el('exportDateRange').classList.toggle('show', exportPeriod === 'custom');
+  if (exportPeriod === 'custom' && (!exportStart || !exportEnd)) return; // wait for Apply
+  loadExport();
+});
+el('exportApply').addEventListener('click', () => {
+  exportStart = el('exportStart').value;
+  exportEnd = el('exportEnd').value;
+  if (!exportStart || !exportEnd) return;
+  loadExport();
+});
+
+el('downloadExcelBtn').addEventListener('click', downloadExcel);
+el('printBtn').addEventListener('click', printReport);
 
 async function tryKey(){
   el('grandBox').innerHTML = '';
@@ -192,12 +363,19 @@ async function tryKey(){
   }
 }
 
+function summaryQueryExtra(){
+  if (period === 'custom' && summaryStart && summaryEnd) {
+    return `&startDate=${encodeURIComponent(summaryStart)}&endDate=${encodeURIComponent(summaryEnd)}`;
+  }
+  return '';
+}
+
 async function loadSummary(isKeyCheck){
   const list = el('listBox');
   const grand = el('grandBox');
   list.innerHTML = '<div class="empty-state">Loading…</div>';
   try {
-    const url = `${GAS_ENDPOINT}?action=adminSummary&adminKey=${encodeURIComponent(adminKey)}&period=${encodeURIComponent(period)}&groupBy=${encodeURIComponent(groupBy)}&_=${Date.now()}`;
+    const url = `${GAS_ENDPOINT}?action=adminSummary&adminKey=${encodeURIComponent(adminKey)}&period=${encodeURIComponent(period)}&groupBy=${encodeURIComponent(groupBy)}${summaryQueryExtra()}&_=${Date.now()}`;
     const res = await fetch(url, { cache: 'no-store' });
     const data = await res.json();
 
@@ -241,6 +419,123 @@ async function loadSummary(isKeyCheck){
     list.innerHTML = '<div class="empty-state">Could not load data — check your connection.</div>';
     return !isKeyCheck; // don't bounce back to the key gate on a plain network error
   }
+}
+
+function exportQueryExtra(){
+  if (exportPeriod === 'custom' && exportStart && exportEnd) {
+    return `&startDate=${encodeURIComponent(exportStart)}&endDate=${encodeURIComponent(exportEnd)}`;
+  }
+  return '';
+}
+
+function exportRangeLabel(){
+  const labels = { today:'Today', yesterday:'Yesterday', week:'Last 7 days', month:'This month', all:'All time' };
+  if (exportPeriod === 'custom' && exportStart && exportEnd) return `${exportStart} to ${exportEnd}`;
+  return labels[exportPeriod] || exportPeriod;
+}
+
+async function loadExport(){
+  const table = el('exportPreviewTable');
+  const countBox = el('exportCount');
+  table.querySelector('thead').innerHTML = '<tr><th colspan="8">Loading…</th></tr>';
+  table.querySelector('tbody').innerHTML = '';
+  countBox.textContent = '';
+  try {
+    const url = `${GAS_ENDPOINT}?action=adminReceipts&adminKey=${encodeURIComponent(adminKey)}&period=${encodeURIComponent(exportPeriod)}${exportQueryExtra()}&_=${Date.now()}`;
+    const res = await fetch(url, { cache: 'no-store' });
+    const data = await res.json();
+
+    if (data && data.error === 'Unauthorized') {
+      showGate(true);
+      return;
+    }
+
+    lastExportRows = data.receipts || [];
+    renderExportPreview();
+  } catch (err) {
+    table.querySelector('thead').innerHTML = '<tr><th colspan="8">Could not load data</th></tr>';
+  }
+}
+
+function renderExportPreview(){
+  const table = el('exportPreviewTable');
+  const countBox = el('exportCount');
+  const cols = ['date','customer','salesperson','type','billNo','amount','paymentType','status'];
+  const headers = ['Date','Customer','Salesperson','Type','Bill #','Amount','Payment','Status'];
+
+  countBox.textContent = `${lastExportRows.length} line item${lastExportRows.length === 1 ? '' : 's'} — ${exportRangeLabel()}`;
+
+  table.querySelector('thead').innerHTML = '<tr>' + headers.map(h => `<th>${h}</th>`).join('') + '</tr>';
+
+  if (!lastExportRows.length) {
+    table.querySelector('tbody').innerHTML = `<tr><td colspan="${headers.length}">No receipts for this range.</td></tr>`;
+    return;
+  }
+
+  table.querySelector('tbody').innerHTML = lastExportRows.map(r => `
+    <tr>
+      <td>${r.date}</td>
+      <td>${r.customer}</td>
+      <td>${r.salesperson}</td>
+      <td>${r.type}</td>
+      <td>${r.billNo}</td>
+      <td>${formatSigned(r.amount)}</td>
+      <td>${r.paymentType}</td>
+      <td>${r.status}</td>
+    </tr>
+  `).join('');
+}
+
+function downloadExcel(){
+  if (!lastExportRows.length) { alert('Nothing to export for this range.'); return; }
+
+  const sheetRows = lastExportRows.map(r => ({
+    'Date': r.date,
+    'Time': r.time,
+    'Customer ID': r.customerId,
+    'Customer': r.customer,
+    'Salesperson': r.salesperson,
+    'Sales ID': r.salesId,
+    'Type': r.type,
+    'Bill #': r.billNo,
+    'Amount': r.amount,
+    'Payment Type': r.paymentType,
+    'Payment Date': r.paymentDate,
+    'Cheque Type': r.chequeType,
+    'Cheque Date': r.chequeDate,
+    'Status': r.status
+  }));
+
+  const ws = XLSX.utils.json_to_sheet(sheetRows);
+  ws['!cols'] = [
+    {wch:11},{wch:8},{wch:10},{wch:22},{wch:16},{wch:8},
+    {wch:12},{wch:10},{wch:11},{wch:12},{wch:12},{wch:11},{wch:12},{wch:9}
+  ];
+  const wb = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(wb, ws, 'Receipts');
+
+  const fname = `receipts-report_${exportPeriod === 'custom' ? exportStart + '_to_' + exportEnd : exportPeriod}_${todayStr()}.xlsx`;
+  XLSX.writeFile(wb, fname);
+}
+
+function printReport(){
+  if (!lastExportRows.length) { alert('Nothing to print for this range.'); return; }
+
+  el('printMeta').textContent = `Range: ${exportRangeLabel()} — ${lastExportRows.length} line item(s) — generated ${new Date().toLocaleString()}`;
+  el('printTableBody').innerHTML = lastExportRows.map(r => `
+    <tr>
+      <td>${r.date}</td>
+      <td>${r.customer}</td>
+      <td>${r.salesperson}</td>
+      <td>${r.type}</td>
+      <td>${r.billNo}</td>
+      <td>${formatSigned(r.amount)}</td>
+      <td>${r.paymentType}</td>
+      <td>${r.status}</td>
+    </tr>
+  `).join('');
+
+  window.print();
 }
 
 /* ---------- init ---------- */
